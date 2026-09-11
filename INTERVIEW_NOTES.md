@@ -182,6 +182,97 @@ of examples per class, not single digits) to have a chance, and the softmax-
 sharing side effect would need fixing first regardless of data volume. Full
 before/after numbers: `data/few_shot/PROVENANCE.md`.
 
+**The softmax-sharing side effect was then actually fixed, measured, and
+also reverted.** Rewrote the scorer so every zero-shot class competes
+against `background` independently instead of sharing one N-way softmax —
+this does remove the coupling (confirmed) and slightly raises confidence on
+real detections, but it also removes false-positive suppression that came
+free from classes competing for probability mass: on `vtest.avi`, the one
+video with real ground truth, F1@tIoU0.5 dropped from 0.909 to 0.714 (3 new
+Vandalism false positives). A threshold sweep couldn't recover the
+baseline. Reverted for the same reason as the probes: worse than what's
+shipped, on the only video with real numbers to check against. The
+underlying coupling bug is real but currently dormant (no probes are
+deployed, so nothing is currently missing from the shared softmax) — not
+worth a measured accuracy cost to fix something with no live effect right
+now. Full numbers and reasoning: `data/few_shot/PROVENANCE.md`, and the
+`src/classifiers/clip_zeroshot.py` module docstring.
+
+**The throughline for an interview**: two independent, real fix attempts
+this session, both measured rigorously against the same ground truth, both
+found to net-regress, both reverted rather than shipped on vibes. That's the
+actual answer to "why not just add training data" — it was tried, honestly
+evaluated, and correctly rejected twice, which is a stronger signal of
+engineering judgment than a single clean success would have been.
+
+**21. Why this approach and not [commercial API / pretrained video model /
+train-from-scratch] — there's a lot of other options in the market?**
+
+Four real alternatives were available; each was ruled out for a specific,
+concrete reason tied to this project's actual constraints (no GPU, no
+provided training data, a fixed 10-class taxonomy defined by geometry as
+much as appearance, and the need to explain every decision, not just report
+a score):
+
+- **Commercial cloud APIs (AWS Rekognition, Google Video Intelligence, Azure
+  Video Indexer).** Fastest to a demo, but wrong for this task on two
+  counts: (1) none of them have a "restricted zone" or "loitering in this
+  specific area" concept — those are defined relative to *this* scene's
+  geometry, which only a system with access to zone coordinates can express;
+  a generic activity-recognition API returns generic activity labels, not
+  "intrusion into zone X." (2) It's a black box for an interview — I can't
+  explain *why* Rekognition tagged a clip "suspicious activity," which
+  directly conflicts with the goal of being able to justify every result.
+  Also a nonstarter without committing to a paid, internet-dependent
+  service for what's meant to be a self-contained take-home.
+
+- **Pretrained video-anomaly models trained on UCF-Crime / XD-Violence.**
+  Closest in spirit — pretrained, no GPU-heavy fine-tuning needed. Ruled out
+  because (a) their label sets don't match this assignment's 10 classes
+  (they're binary anomaly/normal or a different taxonomy entirely — Crowd
+  Formation and Abandoned Object aren't in either), and (b) using a model
+  trained on real crime footage sits on the wrong side of the same ethics
+  line I held during data-gathering this session (declined to download real
+  police-arrest documentation even under permissive licensing) — a model
+  trained on that footage inherits the same problem one step removed, and
+  I'd have no way to audit what it actually saw.
+
+- **Train a custom video classifier from scratch (X3D, VideoMAE,
+  SlowFast).** The "textbook correct" answer for video classification, and
+  the one I'd reach for with a real training set and a GPU. Neither existed
+  here — no labeled video data was provided, and fine-tuning any of these
+  from scratch is a multi-GPU-day undertaking, not a take-home-scale task.
+  Attempting it anyway would have produced an undertrained model with no
+  real evaluation possible, worse than being honest about the constraint.
+
+- **Why the hybrid (rules + CLIP zero-shot), then.** Because the 10 classes
+  split cleanly into two kinds of signal, and forcing one model to do both
+  is worse than two specialized ones: 6 classes (Loitering, Intrusion,
+  Running, Crowd Formation, Abandoned Object, Falling) are defined by
+  *position and motion over time relative to the scene* — no pretrained
+  video classifier has "inside this polygon for N seconds" as a concept,
+  because it's not a property of the pixels, it's a property of the scene
+  geometry the deployer defines. A deterministic rule engine on tracked
+  boxes handles these exactly and explainably (Q14, Q15). The remaining 4
+  (Fire/Smoke, Fighting, Vandalism, Theft) are genuinely *appearance*-based
+  and have no geometry component — CLIP's zero-shot image-text alignment,
+  trained on 400M+ pairs, already has usable priors for "fire," "people
+  fighting," "graffiti" without any task-specific training, which matters
+  specifically because no training data existed. The few-shot probe path
+  (Q20/this session) exists for exactly the case where zero-shot isn't
+  enough and labeled data eventually shows up — built and genuinely tested,
+  not just designed, and honestly found not to help yet at the data volumes
+  gathered so far.
+
+- **The honest summary, one sentence:** commercial APIs and pretrained
+  crime-anomaly models don't fit this task's actual class taxonomy or
+  transparency requirement, training from scratch doesn't fit its actual
+  data/compute constraints, and the hybrid is the one option that both fits
+  the constraints as they really were and stays fully explainable end to
+  end — which two rigorously-tested, honestly-reverted improvement attempts
+  this session (Q20 above) demonstrate wasn't a one-time design decision but
+  an ongoing standard applied to every change since.
+
 ---
 
 **Running this in the interview:** either `python inference.py --video

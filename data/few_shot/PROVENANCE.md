@@ -187,10 +187,58 @@ architecture so removing one class's zero-shot participation doesn't change
 another's calibration — e.g. giving every class its own independent
 background comparison instead of one shared pool.
 
+## Follow-up: the softmax coupling bug was fixed, measured, and reverted too
+
+Since the finding above named the softmax-sharing architecture as a root
+cause, that fix was actually attempted next (2026-09-11): every zero-shot
+class scored as its own independent binary softmax against `background`
+only, instead of one shared N-way softmax across all zero-shot classes.
+
+**It works** — the coupling is gone; giving a class a trained probe no
+longer perturbs its untouched siblings' calibration. It also slightly raised
+confidence on real true positives (Fire/Smoke 0.99→1.00, Fighting
+0.97→0.98).
+
+**But it has its own real cost.** Tested against every sample video with no
+trained probes active (the current deployed state): `running_01.mp4` and
+`running_02.mp4` picked up new Fighting false positives (0.64, 0.68) that
+weren't there before; `falling_01.mp4`'s existing Vandalism false positive
+got worse (0.77→0.87); and on `vtest.avi` — the one video with real ground
+truth, previously 100% clean of appearance-class false positives — three new
+Vandalism false positives appeared. Measured with `scripts.evaluate`:
+**F1@tIoU0.5 dropped from 0.909 to 0.714** (precision 0.833→0.556, recall
+unchanged at 1.000). A threshold sweep (0.5-0.95) was run looking for a
+value that recovers the original clean result without losing true
+positives — none did; the best achievable was F1=0.727, still below
+baseline, and that came at the cost of losing a real Intrusion detection.
+
+Root cause of the trade-off: the original shared softmax was doing real
+false-positive suppression by forcing classes to compete for probability
+mass — an independent per-class check removes that competition along with
+the coupling bug.
+
+**Decision: reverted, not shipped** (`src/classifiers/clip_zeroshot.py` back
+to the shared-softmax design — see the module docstring there for the full
+writeup). The coupling bug is real but currently dormant: no trained probes
+are deployed right now, so no class is currently missing from the shared
+softmax, so the bug has no live effect to fix. Paying a measured accuracy
+cost today for a bug that isn't currently active isn't worth it. Confirmed
+after reverting: `vtest.avi` F1 back to exactly 0.909, all 53 tests pass,
+`fire_smoke_01.mp4` output bit-for-bit identical to before either
+experiment.
+
+The right fix, if/when partial probe deployment actually happens: something
+that keeps per-class independence *and* keeps the false-positive suppression
+— e.g. per-class calibrated thresholds instead of a shared normalizer, or
+isotonic recalibration fit once on a held-out set — not a full architecture
+swap made and measured in one sitting with no time to tune it properly.
+
 ## Next step
 
-Data-gathering and training are done for this round — the real, honest
-result is that it doesn't help yet. If you want to pursue this further: get
-significantly more images per class (aim for 30-50+, not the 4-10 gathered
-here), or address the softmax side-effect in the code first. Otherwise the
-system is back to its previous known-good zero-shot state.
+Data-gathering and both architecture experiments are done for this round —
+the honest result both times is that it doesn't help yet. If you want to
+pursue this further: get significantly more images per class (aim for
+30-50+, not the 4-10 gathered here), and/or take more time on a softmax fix
+that doesn't sacrifice the existing false-positive suppression. Otherwise
+the system is back to its previous known-good zero-shot state (verified,
+not assumed).

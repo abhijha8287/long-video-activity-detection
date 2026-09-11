@@ -158,6 +158,18 @@ shipped. `checkpoints/clip_probes/` is empty in this repo — `inference.py`
 uses zero-shot for all 4 appearance classes. Full numbers and root-cause
 analysis: `data/few_shot/PROVENANCE.md`.
 
+**The shared-softmax coupling bug named above was then fixed and measured,
+too** — scoring every zero-shot class independently against `background`
+instead of sharing one softmax. It does remove the coupling and slightly
+raises confidence on real detections, but on `vtest.avi` (the only video
+with real ground truth) it let 3 new Vandalism false positives through that
+the original competitive softmax had suppressed, dropping F1@tIoU0.5 from
+0.909 to 0.714 — no threshold recovered the baseline. **Also reverted**, for
+the same reason as the probes: worse than what's shipped, checked against
+real numbers rather than assumed. `src/classifiers/clip_zeroshot.py` still
+uses the shared softmax; full writeup in its module docstring and
+`data/few_shot/PROVENANCE.md`.
+
 ## Web UI (upload a video, see results in the browser)
 
 ```bash

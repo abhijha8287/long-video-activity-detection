@@ -3,31 +3,57 @@
 Two scoring paths, chosen per class independently:
 
 - **Zero-shot** (default, no training data needed): each class gets several
-  text-prompt paraphrases (configs/classes.yaml) — a window's score is the max
-  image-text similarity across that class's paraphrases, then softmax-
-  normalized against the other zero-shot classes and an internal "background"
-  pseudo-class (see "Score normalization" in the design doc). Without the
-  background class, an ordinary scene forces the softmax to pick a "winner"
-  among the real classes — observed directly during development (Vandalism
-  spuriously spanning almost an entire ordinary pedestrian video; see
-  report.md), not a hypothetical concern.
+  text-prompt paraphrases (configs/classes.yaml) — a window's score for a
+  class is the max image-text similarity across that class's paraphrases,
+  then softmax-normalized across all zero-shot classes and an internal
+  "background" pseudo-class together (see "Score normalization" in the
+  design doc). Without the background class, a forced choice among only the
+  real classes picks a "winner" even in an ordinary scene — observed
+  directly during development (Vandalism spuriously spanning almost an
+  entire ordinary pedestrian video; see report.md), not a hypothetical
+  concern.
 - **Trained few-shot probe** (opt-in, only if `checkpoints/clip_probes/<class>.pt`
   exists — train one with `train_clip_probe.py`): a logistic-regression head
   on the same frozen CLIP embedding, trained on labeled clips
-  (`src/classifiers/few_shot_probe.py`). Scored independently per class (a
-  calibrated sigmoid probability from its own decision boundary), not mixed
-  into the zero-shot softmax — a trained probe and a zero-shot prompt aren't
-  answering the same kind of question, so forcing them through one softmax
-  would be arbitrary, not principled.
+  (`src/classifiers/few_shot_probe.py`). Scored independently per class, not
+  mixed into the zero-shot softmax.
 
 A class with a trained probe uses it exclusively; a class without one keeps
 using zero-shot. Nothing needs to be configured to get this — it's automatic
 based on what's present in checkpoints/clip_probes/.
+
+## A known, deliberately-unfixed coupling issue
+
+The shared N-way softmax means removing a class from it (by giving it a
+trained probe) measurably changes the *remaining* zero-shot classes'
+calibration — confirmed directly: with 3 classes moved to trained probes,
+Theft's zero-shot score on an unchanged video jumped from 0.72 to 0.88
+confidence, purely from having fewer competitors (see
+`data/few_shot/PROVENANCE.md`).
+
+A fix was built and measured: score every class independently as a binary
+softmax against background only (no competition between real classes at
+all). It does remove the coupling, and slightly raised true-positive
+confidence on genuine detections (Fire/Smoke 0.99→1.00, Fighting 0.97→0.98).
+But measured on `vtest.avi` (the one video with real ground truth), it also
+let multiple classes clear threshold simultaneously where the original
+competitive softmax had suppressed them — 3 new Vandalism false positives
+appeared, and F1@tIoU0.5 dropped from **0.909 to 0.714** (best achievable
+with re-tuning the threshold: 0.727, still well below baseline). The
+competitive N-way softmax was doing real false-positive suppression work
+that an independent per-class check doesn't replicate.
+
+**Decision: reverted, not shipped.** The coupling bug only manifests when
+trained probes are partially adopted (some classes probed, some not) — which
+isn't the current state (no probes are currently deployed; see
+`data/few_shot/PROVENANCE.md` for why the trained ones underperformed and
+were reverted too). Paying a real, measured accuracy cost today to fix a bug
+that isn't currently active isn't a good trade. Revisit this specific fix
+(or a better one — e.g. isotonic recalibration per class instead of a full
+architecture swap) at the point partial probe deployment actually happens.
 """
 from __future__ import annotations
 
-import logging
-from pathlib import Path
 from typing import Any
 
 import cv2
@@ -37,6 +63,8 @@ from PIL import Image
 
 from src.classifiers.few_shot_probe import LinearProbe, load_probe
 from src.utils import resolve_device
+from pathlib import Path
+import logging
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,157 @@
+{
+  "overall": {
+    "0.3": {
+      "tp": 5,
+      "fp": 4,
+      "fn": 0,
+      "precision": 0.5555555555555556,
+      "recall": 1.0,
+      "f1": 0.7142857142857143,
+      "avg_tiou": 0.7639458203789122
+    },
+    "0.5": {
+      "tp": 5,
+      "fp": 4,
+      "fn": 0,
+      "precision": 0.5555555555555556,
+      "recall": 1.0,
+      "f1": 0.7142857142857143,
+      "avg_tiou": 0.7639458203789122
+    },
+    "0.7": {
+      "tp": 3,
+      "fp": 6,
+      "fn": 2,
+      "precision": 0.3333333333333333,
+      "recall": 0.6,
+      "f1": 0.42857142857142855,
+      "avg_tiou": 0.893855806205533
+    }
+  },
+  "per_class": {
+    "0.3": {
+      "Crowd Formation / Unusual Gathering": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 0,
+        "precision": 0.6666666666666666,
+        "recall": 1.0,
+        "f1": 0.8,
+        "avg_tiou": 0.569080841638981,
+        "support": 2
+      },
+      "Intrusion / Trespassing": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "avg_tiou": 0.893855806205533,
+        "support": 3
+      },
+      "Vandalism": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "avg_tiou": 0.0,
+        "support": 0
+      }
+    },
+    "0.5": {
+      "Crowd Formation / Unusual Gathering": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 0,
+        "precision": 0.6666666666666666,
+        "recall": 1.0,
+        "f1": 0.8,
+        "avg_tiou": 0.569080841638981,
+        "support": 2
+      },
+      "Intrusion / Trespassing": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "avg_tiou": 0.893855806205533,
+        "support": 3
+      },
+      "Vandalism": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "avg_tiou": 0.0,
+        "support": 0
+      }
+    },
+    "0.7": {
+      "Crowd Formation / Unusual Gathering": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "avg_tiou": 0.0,
+        "support": 2
+      },
+      "Intrusion / Trespassing": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "avg_tiou": 0.893855806205533,
+        "support": 3
+      },
+      "Vandalism": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "avg_tiou": 0.0,
+        "support": 0
+      }
+    }
+  },
+  "confusion_matrix": {
+    "Crowd Formation / Unusual Gathering": {
+      "Crowd Formation / Unusual Gathering": 2,
+      "Intrusion / Trespassing": 0,
+      "Vandalism": 0,
+      "<missed>": 0
+    },
+    "Intrusion / Trespassing": {
+      "Crowd Formation / Unusual Gathering": 0,
+      "Intrusion / Trespassing": 3,
+      "Vandalism": 0,
+      "<missed>": 0
+    },
+    "Vandalism": {
+      "Crowd Formation / Unusual Gathering": 0,
+      "Intrusion / Trespassing": 0,
+      "Vandalism": 0,
+      "<missed>": 0
+    },
+    "<background>": {
+      "Crowd Formation / Unusual Gathering": 1,
+      "Intrusion / Trespassing": 0,
+      "Vandalism": 3,
+      "<missed>": 0
+    }
+  },
+  "num_predictions": 9,
+  "num_ground_truth": 5
+}

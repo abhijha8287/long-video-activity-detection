@@ -5,3 +5,4 @@ __pycache__/
 .gstack/
 yolo11n.pt
 outputs/streamlit_uploads/
+INTERVIEW_NOTES.md
