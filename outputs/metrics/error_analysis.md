@@ -2,14 +2,16 @@
 
 Generated from `outputs/metrics/vtest_metrics.json` (tIoU >= 0.5) plus direct frame
 inspection. This is the distinct error-analysis step referenced in
-`docs/designs/activity-detection-baseline.md` — see `report.md` §6/§8 for the
+`docs/designs/activity-detection-baseline.md` — see `report.md`, "Results"
+and "Bugs I found and fixed by actually watching the output," for the
 narrative version and the baseline-vs-improved table.
 
 **Update (post-fix):** the temporal-fragmentation false negative described
 below was diagnosed here, then fixed by raising `merge_gap_s` from 1.0s to
-2.0s in `configs/classes.yaml` (`report.md` §8 has the full sweep showing why
-2.0s and not higher). This file keeps the original diagnosis intact — it's
-what led to the fix — and adds the post-fix result at the end of each section.
+2.0s in `configs/classes.yaml` (`report.md`, "Bugs I found and fixed by
+actually watching the output," has the full sweep showing why 2.0s and not
+higher). This file keeps the original diagnosis intact — it's what led to
+the fix — and adds the post-fix result at the end of each section.
 
 ## True positives — now 5/5 ground-truth segments matched (was 4/5)
 
@@ -80,18 +82,20 @@ question rather than resolved either way.
 
 - **8 of 10 classes have zero ground-truth coverage** in this video (Loitering,
   Running, Falling, Abandoned Object, and all 4 appearance classes) — see the
-  data-sourcing limitation in the design doc and report.md §10. The metrics above
-  describe 2 classes only.
+  data-sourcing limitation in the design doc and report.md, "Limitations,
+  stated plainly." The metrics above describe 2 classes only.
 - **Loitering was fixed, not evaluated.** An earlier version of the rule flagged
   ordinary walking as loitering (caught during this same development pass — see
   the docstring in `src/rules/engine.py::dwell_time_scores`); the fixed version
   correctly predicts zero loitering segments for this video, which is the honest
   outcome (nobody stands still here) but isn't a *positive* test of the fix.
 - **CLIP zero-shot's Vandalism false-positive tendency** (observed before the
-  background pseudo-class fix and the threshold tuning — see report.md §8) was
-  real and measured, not hypothetical, exactly matching the risk the design doc
+  background pseudo-class fix and the threshold tuning — see report.md,
+  "Bugs I found and fixed by actually watching the output") was real and
+  measured, not hypothetical, exactly matching the risk the design doc
   named in advance. A further out-of-distribution false positive (a graffiti
   mural read as active vandalism, a grainy 1971 safety film read as vandalism
   instead of Falling) was found and documented in
   `data/samples/PROVENANCE.md` during broader sample-video testing — still
-  unresolved, named as an open risk in report.md §10.
+  unresolved, named as an open risk in report.md, "Limitations, stated
+  plainly."

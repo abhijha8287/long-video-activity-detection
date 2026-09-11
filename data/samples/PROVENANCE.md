@@ -3,7 +3,8 @@
 Sample videos for demo runs (`python inference.py --video data/samples/<name>.mp4`
 or the Streamlit UI, `streamlit run app.py`). **None of these have hand-authored
 ground truth** — they are demo/sample-run material, not part of the scored
-evaluation in `report.md` (which is `vtest.avi` only, §3). Two categories
+evaluation in `report.md` (which is `vtest.avi` only — see "Data — or the
+lack of it" there). Two categories
 (Theft/Chain-Snatching, Abandoned Object) have no video here — see "What's
 missing and why" below.
 
@@ -69,8 +70,9 @@ the same coarse-approximation approach as `configs/zones/vtest.yaml`).
     lowering it without a ground-truth video to check for new false positives
     on ordinary walking (e.g. in `vtest.avi`) would be exactly the kind of
     unvalidated threshold-chasing this project has otherwise avoided (see the
-    `merge_gap_s` fix in `report.md` §8 for the validated version of this same
-    kind of change). Named as an open, evidence-backed limitation instead.
+    `merge_gap_s` fix in `report.md`, "Bugs I found and fixed by actually
+    watching the output," for the validated version of this same kind of
+    change). Named as an open, evidence-backed limitation instead.
 
 ## What's missing and why
 
@@ -100,6 +102,7 @@ around with mislabeled substitute footage.
 
 (Segment end times are clamped to each video's actual duration —
 `src/pipeline/run.py` — and `merge_gap_s` was raised from 1.0s to 2.0s after a
-real, measured fix; see `report.md` §6/§8 for both.)
+real, measured fix; see "Results" and "Bugs I found and fixed by actually
+watching the output" in `report.md` for both.)
 
 Timelines for each: `outputs/visualizations/<name>_timeline.png`.

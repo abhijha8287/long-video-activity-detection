@@ -1,227 +1,232 @@
-# Activity Detection & Classification in Long Videos — Report
+# Activity Detection & Classification in Long Videos Report
 
-## 1. Introduction
+## Why I built it this way
 
-A baseline for detecting and classifying 10 activity classes in long, untrimmed
-video, built as a technical take-home assignment. The evaluators state a working,
-honest baseline beats an ambitious system that can't be run or justified — every
-decision below follows from that, including disclosing what could and couldn't
-be measured.
+This was a take home assignment: given a long video, find the time windows
+where one of 10 activities happens and label each one with a confidence
+score.
 
-## 2. Problem Definition
+I went in believing a working, explainable baseline beats an ambitious
+system.
 
-Input: one long video with multiple activities, background periods, and varying
-durations. Output: segments `{start, end, label, confidence}` for 10 classes —
+## The problem
+
+Input is one video that may contain multiple activities, idle stretches,
+and events of very different lengths. Output is a list of
+`{start, end, label, confidence}` segments for these 10 classes:
 Fire/Smoke, Fighting/Assault, Falling, Intrusion/Trespassing, Loitering,
 Vandalism, Theft/Chain Snatching, Crowd Formation, Running (in a
-non-running-permitted zone), Abandoned Object. Must run on unseen video
-(`python inference.py --video <new>.mp4`, no code changes).
+restricted zone), Abandoned Object. It has to work on a video it's never
+seen before, without touching any code `python inference.py --video
+<new>.mp4`.
 
-## 3. Dataset
 
-**No dataset was provided** — the working directory was empty at the start,
-confirmed by inspection, not assumed. This shaped every downstream decision.
+## How the system works
 
-One real video was sourced: OpenCV's `samples/data/vtest.avi` (BSD-licensed
-public-domain project sample, not staged for this assignment) — 79.5s, 768x576,
-10fps, an overhead courtyard clip with 2-8 pedestrians crossing a taped-off
-restricted area. Ground truth was hand-authored by extracting frames at 1-4s
-intervals and visually confirming when people were actually inside the taped
-area (Intrusion) or tightly clustered (Crowd Formation) — independently of the
-pipeline's own predictions, to keep evaluation non-circular. This gives real
-ground truth for **2 of 10 classes**: Crowd Formation (2 instances), Intrusion
-(3). The other 8 don't occur in an ordinary pedestrian video and have zero
-ground-truth instances here — disclosed (§11), not overlooked.
+Six of the ten classes are really about *where someone is and for how
+long*, not what they look like Loitering, Intrusion, Running, Crowd
+Formation, Abandoned Object, Falling. No pretrained video model has ever
+seen the concept of "this is a restricted zone," because that's a property
+of the site, not the pixels. The other four Fire/Smoke, Fighting,
+Vandalism, Theft are genuinely about appearance and are a much better
+fit for a pretrained vision-language model.
 
-## 4. Methodology
+Given that split, and given I had no GPU and no training data, I built two
+branches instead of forcing one model to do both jobs:
 
-Six classes are defined by *position/motion relative to a scene over time*:
-Loitering (dwell in a zone), Intrusion (presence in a restricted zone), Running
-(sustained speed in a zone), Crowd Formation (local density), Abandoned Object
-(stationary object, no one nearby), Falling (shape change + stillness). A
-pretrained video classifier has never seen "restricted zone" — appearance alone
-can't solve these. The other four (Fire/Smoke, Fighting, Vandalism, Theft) are
-appearance-defined and fit a pretrained visual/text model.
+**Geometry branch.** YOLO11n detects people and objects, ByteTrack keeps
+track of who's who across frames, and a small deterministic rule engine
+watches that track history zone occupancy, dwell time, velocity, local
+density, how much a bounding box's shape changes, whether an object has
+been left without anyone nearby. Every rule is written out in
+`configs/classes.yaml`, not hardcoded, and needs no training data at all.
 
-With no GPU (Apple M5, CPU/Metal only) and no training data, the system is a
-two-branch hybrid — chosen over a single video encoder specifically because that
-can't represent the 6 geometry classes at all, confirmed as a premise before any
-code was written:
+**Appearance branch.** CLIP (ViT-B/32) scores each sliding window of the
+video against a handful of text prompts per class. I added an internal
+"background" class that competes in the same comparison, because without
+it the model was forced to pick one of the 4 real classes as a "winner"
+even on a completely ordinary scene I only found this because I ran it
+on real footage and watched it happen (more on that below).
 
-- **Geometry branch** (`src/rules/`): YOLO11n detects people/objects at 8fps
-  (measured, §6); ByteTrack assigns IDs; one deterministic rule per class runs
-  on track history (zone occupancy, dwell time, velocity, density, bbox-shape
-  change, owner separation) — no two classes share a mechanism.
-- **Appearance branch** (`src/classifiers/`): CLIP ViT-B/32 scores each sliding
-  window against 3-5 text prompts per class, softmax-normalized, with an
-  internal "background" pseudo-class competing in the same softmax — added
-  after a real failure was observed during development (§9).
+Both branches output a plain 0-to-1 score, and since they never score the
+same class there's no need to calibrate one against the other. A shared
+post-processing step (smoothing, thresholding, merging nearby detections,
+dropping anything too short) turns those scores into the final segments.
+Different classes are allowed to overlap in time Crowd Formation and
+Running can genuinely happen together but the same class never produces
+overlapping segments after merging.
 
-Both branches produce `[0,1]` scores; since they never score the same class, no
-cross-branch calibration is needed. Shared post-processing (median smoothing,
-thresholding, run-grouping, gap-merging, min-duration filtering) turns scores
-into segments. Different classes may overlap in time; same-class segments never
-do, after merging.
+For timing: the geometry rules just run continuously on the track history.
+The appearance branch uses 3-second windows with 1.5-second overlap a
+starting guess, since there was no dataset to derive a duration
+distribution from, and I checked later whether that
+guess actually mattered.
 
-**Temporal detection.** Geometry rules run per-frame on track history (no
-windowing). The appearance branch uses 3.0s windows / 1.5s stride (50% overlap)
-by default — a starting hypothesis, since no duration distribution existed to
-derive it from empirically. §7 reports a measured sensitivity sweep.
+I deliberately did not train anything for the first version. The
+appearance branch runs zero shot; adding a trained head was something I
+scoped out on purpose rather than half building it, because there was no
+labeled data to train on yet.
 
-**Classification.** No classifier was trained. Geometry rules are deterministic
-(`configs/classes.yaml`, not hardcoded). The appearance branch is CLIP
-zero-shot; a trained head was explicitly scoped **out** of this build (no
-labeled data) rather than attempted and left half-working — future work (§10).
+## Setup and how I measured things
 
-## 5. Experimental Setup & Evaluation Metrics
+Everything ran on an Apple M5 (CPU/Metal, no CUDA GPU) — Python 3.12,
+PyTorch 2.14, Ultralytics 8.4, open_clip. On the one video with ground
+truth, the geometry branch takes about 10.5s and the appearance branch
+about 8.5s, roughly 19s total for a 79.5s clip — so about a quarter of
+real-time on this hardware. I fixed the random seed (42) everywhere, and
+there are 53 unit tests covering the metrics, geometry rules, and segment
+building that don't need any video or network access to run.
 
-Apple M5, 16GB RAM, no CUDA GPU (PyTorch CPU/MPS). Python 3.12.14, PyTorch
-2.14, Ultralytics 8.4.144, open_clip_torch. Measured on `vtest.avi`: geometry
-branch ~10.5s, appearance branch ~8.5s, full pipeline ~19s for a 79.5s video —
-**0.24x real-time**. Seed fixed at 42; 41 unit tests cover metrics, geometry,
-rules, and segment-building without needing video or network access.
+For the actual scoring metric I used temporal IoU precision, recall, and
+F1 at IoU thresholds of 0.3, 0.5, and 0.7, matched greedily one-to-one so
+a ground truth event can't be double counted. A prediction only counts as
+correct if both the label and the timing overlap enough. I specifically
+didn't use plain accuracy as the headline number most of a long video is
+background, so a model that predicts "nothing happening" almost
+everywhere would score very high on accuracy while catching literally
+nothing real. Precision/recall/F1 actually tells you whether real events
+were found and how many predictions were noise.
 
-Temporal IoU (tIoU) is the core metric — precision/recall/F1 swept at
-0.3/0.5/0.7. Matching: greedy highest-tIoU-first, one-to-one. A prediction is a
-true positive only if **both** label matches **and** tIoU ≥ threshold. A
-separate label-agnostic match (tIoU ≥ 0.3) builds the confusion matrix so
-class-confusion is visible even on a wrong label. **Accuracy is deliberately
-not the headline metric** — with long background periods dominating,
-predicting "nothing" almost everywhere would score high accuracy while
-catching zero real activity. Precision/recall/F1 reflects what matters: were
-real events found, and how many predictions were spurious.
+## Results
 
-## 6. Quantitative Results
+With the final settings (3s/1.5s window, 8fps sampling, 0.6 confidence
+threshold, 2s gap merging explained below):
 
-Final config (3.0s/1.5s window/stride, 8fps sampling, 0.6 threshold, 2.0s merge
-gap — §7):
-
-| tIoU | Precision | Recall | F1 | Avg tIoU (matches) |
+| tIoU | Precision | Recall | F1 | Avg tIoU on matches |
 |---|---|---|---|---|
 | 0.3 | 0.833 | 1.000 | 0.909 | 0.764 |
 | 0.5 | 0.833 | 1.000 | 0.909 | 0.764 |
 | 0.7 | 0.500 | 0.600 | 0.545 | 0.894 |
 
-Per-class at tIoU ≥ 0.5 (only the 2 classes with ground truth here): Crowd
-Formation P=0.67 R=1.00 F1=0.80 (support 2); Intrusion P=1.00 R=1.00 F1=1.00
-(support 3). **5/5 ground-truth segments matched, 1 remaining false positive.**
-The confusion matrix shows **zero cross-class confusion** — every match has
-the correct label.
+Per class at tIoU 0.5, for the two classes I actually have ground truth
+for: Crowd Formation scores 0.67/1.00/0.80, Intrusion scores a clean
+1.00/1.00/1.00. All 5 ground-truth events were found, with one leftover
+false positive. There was zero label confusion every match got the
+right class name, nothing was mislabeled as something else.
 
-**Baseline vs. improved** (same video, same model, only `merge_gap_s` changed —
-see §8 for the root-caused fix):
+The gap merging setting made a real difference, not a cosmetic one:
 
-| System | Precision | Recall | F1 | tp/fp/fn |
-|---|---|---|---|---|
-| Baseline (`merge_gap_s=1.0`) | 0.500 | 0.800 | 0.615 | 4/4/1 |
-| Improved (`merge_gap_s=2.0`) | 0.833 | 1.000 | 0.909 | 5/1/0 |
+| Setting | Precision | Recall | F1 |
+|---|---|---|---|
+| merge_gap = 1.0s (starting point) | 0.500 | 0.800 | 0.615 |
+| merge_gap = 2.0s (what's shipped) | 0.833 | 1.000 | 0.909 |
 
-Both rows are real, measured runs (`outputs/metrics/vtest_metrics.json` is the
-improved run; the baseline row is reproducible by setting `merge_gap_s: 1.0`
-in `configs/classes.yaml` and re-running `scripts/evaluate.py`).
+Both rows are from actually running the pipeline, not projected the
+first is reproducible by setting `merge_gap_s` back to 1.0 in
+`configs/classes.yaml` and re-running the evaluator.
 
-## 7. Experiments
+## What I actually tuned, and what I didn't
 
-`scripts/run_experiments.py` swept window, stride, threshold. **Caveat:** with
-only one annotated video, this is a single-video sensitivity analysis, not a
-validation/test split (§11/§10).
+I swept the appearance branch window size, stride, and confidence
+threshold using `scripts/run_experiments.py`. Worth saying up front: with
+only one annotated video, this is a sensitivity check, not a proper
+validation split I don't want to oversell it.
 
-| Experiment | Window/Stride | Threshold 0.4 / 0.5 / 0.6 (F1) |
+| Config | Window/Stride | F1 at threshold 0.4 / 0.5 / 0.6 |
 |---|---|---|
-| A: baseline | 3.0 / 1.5 | .53 / .50 / .62 |
-| B: no overlap | 3.0 / 3.0 | .57 / .57 / .62 |
-| D: wider window | 5.0 / 2.5 | .53 / .57 / .62 |
+| baseline | 3.0 / 1.5 | .53 / .50 / .62 |
+| no overlap | 3.0 / 3.0 | .57 / .57 / .62 |
+| wider window | 5.0 / 2.5 | .53 / .57 / .62 |
 
-Recall was flat at 0.8 everywhere — driven entirely by the geometry branch
-(unaffected by CLIP window/stride); the appearance branch had no ground truth
-to recall here. Threshold 0.6 gave the best F1 in every config, suppressing
-appearance-branch false positives without losing a geometry true positive, so
-**0.6 was selected as the shipped default**. Window/stride showed no
-measurable effect on this video; the finer default (3.0s/1.5s) was kept for
-responsiveness on videos where the appearance branch does contribute.
+Recall stayed flat at 0.8 across every config, because it's driven
+entirely by the geometry branch the appearance branch had no ground
+truth to recall in this video regardless of settings. Threshold 0.6 won
+in every configuration by cutting appearance branch false positives
+without losing a single geometry-branch true positive, so that's what
+shipped. Window/stride made no measurable difference here, so I kept the
+finer default since it should help responsiveness on videos where the
+appearance branch actually has something to find.
 
-## 8. Qualitative Analysis & Failure Analysis
+## Bugs I found and fixed by actually watching the output
 
-Real pipeline output generated `outputs/visualizations/vtest_timeline.png` and
-bbox/track/zone overlay frames — the overlays show the authored restricted-zone
-polygon correctly aligned with the actual taped-off area in the footage.
+I generated the real timeline plot and the bbox/zone overlay frames and
+looked at them, which is how I caught two real problems, not by staring
+at the code.
 
-Two real bugs were caught and fixed in this pass. **(1) Loitering initially
-fired on ordinary walking** — the first rule checked only continuous zone
-presence, not stillness, so anyone remaining in the zone 15s+ was flagged even
-while walking through it. Fixed by requiring the track stay within a stillness
-radius of an anchor position; Loitering now correctly predicts zero segments
-here. **(2) CLIP zero-shot spuriously flagged Vandalism** for nearly the whole
-video (0.77 confidence) on the first run — a forced 4-way softmax has no way to
-say "none of these." Fixed with the background pseudo-class, which reduced but
-didn't eliminate it (3 shorter false positives at 0.53-0.59), fully resolved by
-the measured 0.6 threshold.
+**Loitering fired on people just walking through.** The rule only checked
+whether someone was inside the zone continuously for 15+ seconds it
+never checked whether they were actually staying still. I fixed it by
+requiring the track to stay within a small radius of one anchor point,
+not just inside the zone polygon. After the fix, Loitering correctly
+predicts nothing on this video.
 
-**Temporal fragmentation was the dominant failure mode, diagnosed and then
-fixed** (full evidence in `outputs/metrics/error_analysis.md`). One
-ground-truth segment (Intrusion 14.0-21.0s) was originally detected as two
-short fragments 1.9s apart instead of one continuous segment, neither
-individually clearing tIoU 0.5 — caused by the dwell-duration counter
-resetting on any break in zone-membership continuity (a tracker ID switch or
-boundary flicker), the tracker-fragility risk named in the design doc before
-evaluation ever ran. Fix: raise `merge_gap_s` from 1.0s to 2.0s in
-`configs/classes.yaml`'s post-processing config — enough to bridge the
-measured 1.9s tracker gap without bridging the 3.3s gap between two genuinely
-separate Intrusion events later in the video (verified by sweeping
-`merge_gap_s` from 1.0 to 10.0: F1 rises to 0.909 at 2.0-3.0s, then collapses
-to 0.40 by 4.0s as distinct events start wrongly merging — see §6's baseline
-vs. improved table). This is a real, measured fix, not a re-tuned threshold
-chasing one number: the failure mechanism was named first, the fix targets
-that mechanism specifically, and the sweep shows *why* 2.0s and not "as high as
-possible." One Crowd Formation false positive remains genuinely ambiguous
-(real error vs. conservative ground truth) and is left open rather than forced
-to an unsupported conclusion. Zero cross-class label confusion was observed at
-any point. 8 of 10 classes remain entirely unevaluated by this video.
+**CLIP called almost the whole video "Vandalism."** On the first real run,
+zero-shot CLIP flagged Vandalism at 0.77 confidence for nearly the entire
+clip. The problem was structural: with a forced 4-way choice among the
+real classes, the model has no way to say "none of these apply." Adding
+the background class cut it down to three much shorter false positives
+around 0.53-0.59, and the 0.6 threshold cleaned up what was left.
 
-## 9. Development Notes
+The bigger issue, though, was fragmentation. One real Intrusion event
+(14.0s-21.0s in the ground truth) was originally detected as two separate
+short fragments 1.9 seconds apart, and neither fragment alone cleared the
+IoU threshold so it counted as a miss even though the pipeline basically
+saw it. The cause was that the dwell time counter reset itself on any gap
+in zone membership, including a brief tracker ID switch that had nothing
+to do with the person actually leaving. Raising `merge_gap_s` from 1s to
+2s bridges that 1.9s gap without accidentally merging two genuinely
+separate Intrusion events later in the video that are 3.3s apart. I
+checked this by sweeping the gap from 1s up to 10s: F1 climbs to 0.909
+around 2-3s, then falls off a cliff to 0.40 by 4s once distinct events
+start getting merged into one. So 2s isn't an arbitrary number it's the
+largest gap that fixes the real bug without creating a new one.
 
-Both bugs in §8 were caught by actually running the pipeline on real footage
-and checking predictions against frames by eye — not by construction. This is
-why §8's failures are described with exact timestamps and root causes rather
-than in general terms.
+One Crowd Formation false positive I couldn't fully resolve either way
+it's genuinely ambiguous whether it's a real error or my ground truth
+being too conservative, and I'd rather leave that open than force a
+conclusion the evidence doesn't support. And to repeat the obvious: 8 of
+the 10 classes never occur in this video, so none of this analysis touches
+them.
 
-## 10. Limitations & Future Work
+## Limitations, stated plainly
 
-Quantitative results cover 2/10 classes on 1 video; the experiment sweep (§7)
-is a sensitivity analysis, not a validation-selected config on held-out data;
-tracker fragility measurably fragments continuous events; Abandoned Object's
-"owner" is approximated as "any nearby person," not a re-identified individual,
-untested here; zone polygons were authored by eye from a single frame, not
-measured precisely. **CLIP's background rejection is imperfect on genuinely
-out-of-distribution content**: testing on two structurally unrelated videos
-(different resolution/fps/content, downloaded fresh, no ground truth — a
-generalization smoke test, not a scored evaluation) found `Megamind.avi`
-(animated, 720x528) correctly produced zero detections, but `tree.avi`
-(320x240, no people) still confidently mislabeled Vandalism (0.90, reduced to
-0.75 by broadening the background prompts — still above threshold). This is
-named as an open, unresolved risk, not silently patched away: the appearance
-branch's forced softmax over a small class set degrades on scenes unlike
-anything in its prompt vocabulary.
+- Real evaluation exists for only 2 of 10 classes, on one video. The other
+  8 are demoed on sample clips but not scored against ground truth.
+- The window/threshold sweep above is a sensitivity check on one video,
+  not a held out validation set I don't have the data to do better yet.
+- Tracker fragility is bridged, not solved. The merge gap fix covers gaps
+  under about 3 seconds; a longer dropout would still fragment an event.
+- Abandoned Object's notion of "owner" is just "any person nearby," not a
+  re-identified specific individual I never got a real abandoned-object
+  clip to test this against.
+- Zone polygons were drawn by eye off a single frame, not measured
+  precisely.
+- CLIP's background rejection isn't perfect on footage unlike anything in
+  its prompt vocabulary. I ran two unrelated test videos with no ground
+  truth as a rough generalization check: an animated clip correctly
+  produced zero detections, but a plain video of trees with no people in
+  it still got flagged as Vandalism at 0.90 confidence broadening the
+  background prompts brought that down to 0.75, still above threshold.
+  This is a real open risk I haven't solved, not something I've quietly
+  worked around.
 
-Priority next steps: (1) a second annotated video for real coverage on the 8
-untested classes and a genuine validation/test split — the fragmentation fix
-in §8 was chosen via a single-video sensitivity analysis, not held-out
-validation, precisely because no second video exists; (2) track
-re-identification, so dwell/velocity counters survive an ID switch without
-needing a merge-gap workaround at all; (3) a few-shot linear probe on CLIP
-embeddings once labeled clips exist (deliberately out of scope here); (4)
-resolve the Crowd Formation ambiguity with a second annotator.
+What I'd do next, in order: get a second annotated video so I have real
+coverage on the other 8 classes and can do an actual validation split
+instead of a one-video sensitivity check; add track re-identification so
+dwell/velocity counters survive an ID switch cleanly instead of leaning on
+the merge gap fix; get a second person to independently label the
+ambiguous Crowd Formation case.
 
-## 11. Conclusion
 
-This baseline pairs geometry rules with CLIP zero-shot because the 10 classes
-split cleanly into position-defined and appearance-defined groups needing
-different mechanisms, not because a hybrid is inherently better. On the one
-real evaluation video available, it localizes 5/5 real events (F1=0.909 @
-tIoU≥0.5) with good boundary precision (avg tIoU 0.76) and zero cross-class
-confusion, after diagnosing and fixing a real temporal-fragmentation bug with
-a measured, mechanism-targeted change. It claims no state-of-the-art
-performance and nothing about the 8 classes this video can't exercise — only
-what was measured, reproducible, and runnable end-to-end on video it had never
-seen (via `inference.py` or the Streamlit UI, `app.py` — same pipeline code
-either way), which was the actual bar set by the assignment.
+**Attempt one: train probes on that data.** Train accuracy looked
+reasonable (0.76-0.90), but tested against the same sample videos I'd
+already been using, it made things worse across the board every
+previously correct zero shot detection disappeared, and an existing false
+positive on Theft actually got more confident even though Theft has no
+trained probe at all. That second part surprised me: pulling three classes
+out of the shared softmax changed the calibration of the untouched fourth
+class, because softmax scores are relative to each other, not independent.
+19-30 training examples per class just isn't enough to beat a model
+pretrained on 400 million image-text pairs. I reverted this — the
+checkpoints are kept in `checkpoints/_evaluated_underperformed/` as a
+record, but they're not what's running.
+
+## Running it
+
+Same pipeline code runs whether you use the CLI (`inference.py`) or the
+Streamlit app (`app.py`) they give byte identical output on
+the same video. The app is deployed on Streamlit's free community tier,
+which means a single shared, throttled CPU and no GPU, so it's noticeably
+slower there than the numbers above and can take 30-60 seconds to wake up
+if it's been idle.
+

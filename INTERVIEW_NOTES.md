@@ -11,7 +11,7 @@ relative to a scene, which no pretrained video classifier has a concept of
 deterministic rule engine for those, CLIP ViT-B/32 zero-shot for the 4
 appearance-defined classes (Fire/Smoke, Fighting, Vandalism, Theft). No
 training data existed and no GPU was available, which ruled out fine-tuning
-anything from scratch. `report.md` §4.
+anything from scratch. `report.md`, "How the system works."
 
 **2. Why not use a simple image classifier?**
 Single-frame classification can't see motion or duration — it can't tell
@@ -39,7 +39,7 @@ distribution existed to derive it empirically (no dataset was provided). A
 measured sweep (`scripts/run_experiments.py`) found window/stride had no
 effect on the one video available; the finer default was kept for
 responsiveness on videos where the appearance branch actually contributes.
-`report.md` §7.
+`report.md`, "What I actually tuned, and what I didn't."
 
 **6. How do you handle background?**
 Two mechanisms. Geometry branch: rules simply don't fire absent a triggering
@@ -61,7 +61,7 @@ prevented.
 Temporal IoU with greedy highest-IoU-first, one-to-one matching (a ground
 truth segment can't be matched twice). A prediction is a true positive only
 if both the label matches and tIoU clears the threshold. Swept at 0.3/0.5/0.7.
-`src/eval/metrics.py`, `report.md` §5.
+`src/eval/metrics.py`; `report.md`, "Setup and how I measured things."
 
 **9. What is temporal IoU?**
 Intersection over union of two time intervals: overlap duration divided by
@@ -71,14 +71,14 @@ combined duration. `intersection / union` on `[start, end]` ranges.
 Long background periods dominate most video. A system predicting "nothing"
 almost everywhere scores high frame-level accuracy while catching zero real
 activity. Precision/recall/F1 on segments actually reflects whether real
-events were found and how many predictions were spurious. `report.md` §5.
+events were found and how many predictions were spurious. `report.md`, "Setup and how I measured things."
 
 **11. How did you avoid data leakage?**
 There's no train/val/test split to leak across — nothing is trained. The one
 place leakage-like risk exists is the `merge_gap_s` fix (Q17): it was chosen
 by sweeping against the only annotated video available, which is a disclosed
 single-video sensitivity analysis, not a validation-set-verified choice. This
-is named explicitly as a limitation, not hidden. `report.md` §7, §10.
+is named explicitly as a limitation, not hidden. `report.md`, "What I actually tuned, and what I didn't" and "Limitations, stated plainly."
 
 **12. How do you handle class imbalance?**
 N/A in the conventional sense — there's no training set to be imbalanced.
@@ -116,7 +116,7 @@ re-identification, so dwell/velocity counters survive a tracker ID switch
 without leaning on a merge-gap workaround; (3) a few-shot linear probe on
 CLIP embeddings once labeled appearance-class clips exist; (4) a second
 annotator to resolve the one remaining ambiguous Crowd Formation false
-positive. `report.md` §10.
+positive. `report.md`, "Limitations, stated plainly."
 
 **17. What are the biggest limitations?**
 Only 2 of 10 classes have real quantitative evaluation (one video, honestly
