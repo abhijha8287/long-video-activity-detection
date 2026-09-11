@@ -1,0 +1,20 @@
+# Zone config for data/samples/running_01.mp4 (Wikimedia: 2019 Montevideo Sprint
+# Triathlon American Cup, elite men's race — third-person street/promenade view).
+#
+# Authored by: extracting the first frame (ffmpeg -vf "select=eq(n\,0)"),
+# eyeballing pixel coordinates of the road/promenade area at the video's
+# native 1280x720 resolution. This is a demo zone for the bundled sample
+# gallery, not part of the scored evaluation (see data/samples/PROVENANCE.md).
+video: running_01.mp4
+frame_size: [1280, 720]
+zones:
+  - name: promenade_road
+    type: no_running
+    # broad rectangle over the paved road/promenade where the runners move;
+    # coarse, not a precise lane outline — same approximation approach as
+    # configs/zones/vtest.yaml
+    polygon:
+      - [0, 0]
+      - [1280, 0]
+      - [1280, 720]
+      - [0, 720]

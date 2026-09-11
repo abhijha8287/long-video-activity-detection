@@ -1,0 +1,11 @@
+{
+  "video": "data/samples/vandalism_01.mp4",
+  "segments": [
+    {
+      "start": 1.5,
+      "end": 12.0,
+      "label": "Vandalism",
+      "confidence": 0.985
+    }
+  ]
+}

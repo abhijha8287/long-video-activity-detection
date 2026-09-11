@@ -1,0 +1,11 @@
+{
+  "video": "data/samples/running_02.mp4",
+  "segments": [
+    {
+      "start": 3.0,
+      "end": 6.51,
+      "label": "Theft / Chain Snatching",
+      "confidence": 0.72
+    }
+  ]
+}

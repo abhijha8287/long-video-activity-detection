@@ -1,0 +1,11 @@
+{
+  "video": "data/samples/vtest.avi",
+  "_provenance": "Hand-authored by visually reviewing extracted frames (see docs/designs/activity-detection-baseline.md data-sourcing plan and report.md). vtest.avi is OpenCV's public-domain samples/data/vtest.avi (BSD-licensed project sample), an unmodified overhead courtyard/walkway clip — not staged for this assignment. Segment boundaries were chosen independently from the pipeline's own predicted timestamps by inspecting frames at ~1-4s intervals and checking, by eye, when people are actually inside the taped-off area (Intrusion) or tightly clustered (Crowd Formation). This video does not naturally contain Loitering, Running, Falling, Abandoned Object, Fire/Smoke, Fighting, Vandalism, or Theft events, so those 8 classes have zero ground-truth segments here and are not quantitatively evaluated by this video — a real, disclosed limitation, not an evaluation gap that was overlooked.",
+  "segments": [
+    {"start": 5.0, "end": 11.0, "label": "Crowd Formation / Unusual Gathering"},
+    {"start": 14.0, "end": 21.0, "label": "Intrusion / Trespassing"},
+    {"start": 24.0, "end": 31.0, "label": "Intrusion / Trespassing"},
+    {"start": 57.0, "end": 70.0, "label": "Intrusion / Trespassing"},
+    {"start": 68.0, "end": 71.5, "label": "Crowd Formation / Unusual Gathering"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "video": "/tmp/tree.avi",
+  "segments": [
+    {
+      "start": 1.5,
+      "end": 25.5,
+      "label": "Vandalism",
+      "confidence": 0.749
+    }
+  ]
+}

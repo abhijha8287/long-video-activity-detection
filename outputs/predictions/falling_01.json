@@ -1,0 +1,11 @@
+{
+  "video": "data/samples/falling_01.mp4",
+  "segments": [
+    {
+      "start": 18.0,
+      "end": 19.99,
+      "label": "Vandalism",
+      "confidence": 0.774
+    }
+  ]
+}

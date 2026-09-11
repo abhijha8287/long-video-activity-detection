@@ -1,0 +1,11 @@
+{
+  "video": "data/samples/fire_smoke_01.mp4",
+  "segments": [
+    {
+      "start": 1.5,
+      "end": 5.62,
+      "label": "Fire / Smoke",
+      "confidence": 0.994
+    }
+  ]
+}

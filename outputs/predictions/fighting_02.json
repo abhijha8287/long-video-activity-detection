@@ -1,0 +1,11 @@
+{
+  "video": "data/samples/fighting_02.mp4",
+  "segments": [
+    {
+      "start": 1.5,
+      "end": 3.0,
+      "label": "Fighting / Physical Assault",
+      "confidence": 0.634
+    }
+  ]
+}

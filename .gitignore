@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.gstack/
+yolo11n.pt
+outputs/streamlit_uploads/

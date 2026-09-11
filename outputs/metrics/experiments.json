@@ -1,0 +1,92 @@
+[
+  {
+    "experiment": "A: baseline (w=3.0 s=1.5)",
+    "window_s": 3.0,
+    "stride_s": 1.5,
+    "threshold": 0.4,
+    "num_predictions": 10,
+    "precision": 0.4,
+    "recall": 0.8,
+    "f1": 0.533
+  },
+  {
+    "experiment": "A: baseline (w=3.0 s=1.5)",
+    "window_s": 3.0,
+    "stride_s": 1.5,
+    "threshold": 0.5,
+    "num_predictions": 11,
+    "precision": 0.364,
+    "recall": 0.8,
+    "f1": 0.5
+  },
+  {
+    "experiment": "A: baseline (w=3.0 s=1.5)",
+    "window_s": 3.0,
+    "stride_s": 1.5,
+    "threshold": 0.6,
+    "num_predictions": 8,
+    "precision": 0.5,
+    "recall": 0.8,
+    "f1": 0.615
+  },
+  {
+    "experiment": "B: no window overlap (w=3.0 s=3.0)",
+    "window_s": 3.0,
+    "stride_s": 3.0,
+    "threshold": 0.4,
+    "num_predictions": 9,
+    "precision": 0.444,
+    "recall": 0.8,
+    "f1": 0.571
+  },
+  {
+    "experiment": "B: no window overlap (w=3.0 s=3.0)",
+    "window_s": 3.0,
+    "stride_s": 3.0,
+    "threshold": 0.5,
+    "num_predictions": 9,
+    "precision": 0.444,
+    "recall": 0.8,
+    "f1": 0.571
+  },
+  {
+    "experiment": "B: no window overlap (w=3.0 s=3.0)",
+    "window_s": 3.0,
+    "stride_s": 3.0,
+    "threshold": 0.6,
+    "num_predictions": 8,
+    "precision": 0.5,
+    "recall": 0.8,
+    "f1": 0.615
+  },
+  {
+    "experiment": "D: wider window (w=5.0 s=2.5)",
+    "window_s": 5.0,
+    "stride_s": 2.5,
+    "threshold": 0.4,
+    "num_predictions": 10,
+    "precision": 0.4,
+    "recall": 0.8,
+    "f1": 0.533
+  },
+  {
+    "experiment": "D: wider window (w=5.0 s=2.5)",
+    "window_s": 5.0,
+    "stride_s": 2.5,
+    "threshold": 0.5,
+    "num_predictions": 9,
+    "precision": 0.444,
+    "recall": 0.8,
+    "f1": 0.571
+  },
+  {
+    "experiment": "D: wider window (w=5.0 s=2.5)",
+    "window_s": 5.0,
+    "stride_s": 2.5,
+    "threshold": 0.6,
+    "num_predictions": 8,
+    "precision": 0.5,
+    "recall": 0.8,
+    "f1": 0.615
+  }
+]

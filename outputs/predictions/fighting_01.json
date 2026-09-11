@@ -1,0 +1,17 @@
+{
+  "video": "data/samples/fighting_01.mp4",
+  "segments": [
+    {
+      "start": 4.5,
+      "end": 38.44,
+      "label": "Fighting / Physical Assault",
+      "confidence": 0.971
+    },
+    {
+      "start": 35.91,
+      "end": 37.5,
+      "label": "Falling (person collapse)",
+      "confidence": 1.0
+    }
+  ]
+}

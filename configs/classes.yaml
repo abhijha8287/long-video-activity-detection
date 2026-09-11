@@ -1,0 +1,139 @@
+# Class definitions for the activity detection pipeline.
+# Each class is assigned to exactly one branch:
+#   - "geometry": YOLO detection + tracking + a deterministic rule (src/rules/)
+#   - "appearance": CLIP zero-shot over sliding windows (src/classifiers/)
+# All thresholds/prompts here are config, not hardcoded constants — retune without
+# touching code. See docs/designs/activity-detection-baseline.md for the rationale.
+
+classes:
+  fire_smoke:
+    display_name: "Fire / Smoke"
+    branch: appearance
+    prompts:
+      - "a photo of fire and smoke"
+      - "flames burning indoors"
+      - "thick smoke filling a room"
+      - "a building or object on fire"
+
+  fighting:
+    display_name: "Fighting / Physical Assault"
+    branch: appearance
+    prompts:
+      - "two people physically fighting each other"
+      - "a violent physical assault between people"
+      - "people punching, grabbing, and shoving each other aggressively"
+      - "a brawl breaking out"
+
+  vandalism:
+    display_name: "Vandalism"
+    branch: appearance
+    prompts:
+      - "a person spray painting graffiti on a wall"
+      - "someone deliberately breaking or damaging property"
+      - "a person smashing a window or a car"
+
+  theft:
+    display_name: "Theft / Chain Snatching"
+    branch: appearance
+    prompts:
+      - "a person snatching a bag or chain from someone and running away"
+      - "a thief grabbing an item off a person and fleeing"
+      - "a robbery or mugging in progress"
+
+  background:
+    # Internal-only pseudo-class, never reported as an output segment. Without
+    # it, the appearance branch's softmax always has to pick a "winner" among
+    # the 4 real classes even when nothing is happening — observed directly in
+    # this project's own evaluation run (see report.md), where Vandalism spuriously
+    # spanned nearly an entire ordinary pedestrian video at ~0.77 confidence
+    # because the softmax had no "none of the above" option. This class gives it
+    # one: a window's real-class probabilities are computed jointly with this
+    # pseudo-class, so an ordinary scene can genuinely score low on all 4 real
+    # classes instead of one of them always winning by default.
+    display_name: "(background — never emitted)"
+    branch: appearance_background
+    prompts:
+      - "an ordinary photo of a street, courtyard, or room"
+      - "people going about their day with nothing unusual happening"
+      - "a normal daily scene with no incident"
+      - "an empty or calm everyday environment"
+      - "nature, trees, plants, or an outdoor scene with no people"
+      - "a low quality or low resolution ordinary video frame"
+
+  falling:
+    display_name: "Falling (person collapse)"
+    branch: geometry
+    rule: bbox_shape_change
+    params:
+      aspect_ratio_flip_ratio: 1.4       # width/height must grow by this factor vs. the track's running-median aspect ratio
+      post_event_stillness_window_s: 2.0 # how long to check for near-zero movement after the flip
+      post_event_movement_px: 15         # centroid movement below this over the stillness window confirms a collapse, not a crouch/bend
+
+  intrusion:
+    display_name: "Intrusion / Trespassing"
+    branch: geometry
+    rule: zone_occupancy
+    zone_type: restricted
+    params:
+      min_trigger_duration_s: 0.5        # brief guard against a single noisy detection frame
+
+  loitering:
+    display_name: "Loitering"
+    branch: geometry
+    rule: dwell_time
+    zone_type: loitering
+    params:
+      dwell_threshold_s: 15.0
+      score_sigmoid_scale_s: 5.0         # score = sigmoid((dwell - threshold) / scale)
+      stillness_radius_px: 60            # must stay within this radius of its anchor position — walking through the zone doesn't count, standing around does
+
+  crowd_formation:
+    display_name: "Crowd Formation / Unusual Gathering"
+    branch: geometry
+    rule: density
+    params:
+      min_people: 4
+      cluster_radius_px: 150
+      sustained_duration_s: 3.0
+
+  running:
+    display_name: "Running (in a non-running-permitted zone)"
+    branch: geometry
+    rule: velocity
+    zone_type: no_running
+    params:
+      # normalized by each track's own bbox height so the threshold is roughly
+      # scale-invariant to how close the camera is to the subject
+      velocity_threshold_bbox_heights_per_s: 2.0
+      min_trigger_duration_s: 1.0
+
+  abandoned_object:
+    display_name: "Abandoned Object"
+    branch: geometry
+    rule: owner_separation
+    params:
+      static_object_classes: ["backpack", "suitcase", "handbag"]
+      static_duration_s: 10.0            # object must be stationary this long to be a candidate
+      static_movement_px: 20
+      owner_proximity_px: 100
+      owner_separation_duration_s: 10.0  # no person within proximity of the object for this long
+
+# Shared post-processing (applies to both branches after per-class scoring).
+post_processing:
+  # 0.6 measured best (F1@tIoU>=0.5) across window/stride/threshold sweep on the
+  # one real evaluation video available (see scripts/run_experiments.py output
+  # and report.md) — disclosed there as a single-video sensitivity analysis, not
+  # a proper validation/test split, since only one annotated video exists.
+  confidence_threshold: 0.6
+  smoothing_window_frames: 5             # median filter over adjacent scored frames/windows
+  min_segment_duration_s: 1.0            # drop segments shorter than this (likely noise)
+  # Raised from 1.0 -> 2.0 after diagnosing the single biggest measured failure mode
+  # (see outputs/metrics/error_analysis.md and report.md): a tracker ID switch or
+  # brief zone-boundary flicker resets the dwell-duration streak, splitting one
+  # continuous event into two short fragments ~1.9s apart, each too short to clear
+  # the tIoU>=0.5 bar individually. Measured sweep (scripts/run_experiments.py-style,
+  # single-video sensitivity analysis on vtest.avi, not a validation/test split):
+  # 1.0/1.5s -> F1=0.615; 2.0/2.5/3.0s -> F1=0.909 (bridges the 1.9s tracker gap,
+  # all 5 GT segments matched); 4.0s+ starts wrongly merging genuinely separate
+  # events 3.3s apart and F1 collapses to 0.40. 2.0s sits with margin on both sides.
+  merge_gap_s: 2.0

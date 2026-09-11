@@ -1,0 +1,38 @@
+# Zone config for data/samples/vtest.avi (built from OpenCV's public-domain
+# samples/data/vtest.avi, an overhead courtyard/walkway CCTV clip).
+#
+# Authored by: extracting a frame (ffmpeg -vf "select=eq(n\,0)"), eyeballing pixel
+# coordinates of the taped-off/coned area and the main walkway, at the video's
+# native 768x576 resolution. This is a per-camera config, reused across every
+# video from this same camera angle — not re-authored per video.
+video: vtest.avi
+frame_size: [768, 576]
+zones:
+  - name: taped_off_area
+    type: restricted
+    # follows the cone/tape line visible in the source footage, roughly tracing
+    # the paved cutout behind the barrier tape near the building entrance
+    polygon:
+      - [30, 105]
+      - [460, 100]
+      - [460, 175]
+      - [295, 190]
+      - [165, 200]
+      - [35, 190]
+  - name: main_courtyard
+    type: no_running
+    # the paved walkway area where pedestrians move; coarse rectangle, not a
+    # precise path outline — good enough for a baseline, noted as an
+    # approximation in the report
+    polygon:
+      - [0, 90]
+      - [768, 90]
+      - [768, 420]
+      - [0, 420]
+  - name: main_courtyard_loiter
+    type: loitering
+    polygon:
+      - [0, 90]
+      - [768, 90]
+      - [768, 420]
+      - [0, 420]
